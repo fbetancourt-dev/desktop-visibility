@@ -35,6 +35,7 @@ BACKUP_BASE_DIR = os.path.expanduser("~/.local/share/app_visibility_backup")
 DESKTOP_DIR = os.path.expanduser("~/Desktop")
 
 ALL_COMPONENTS = ["dock", "tray", "window", "desktop"]
+DEFAULT_COMPONENTS = ["dock", "window", "desktop"]
 APPINDICATOR_EXT = "ubuntu-appindicators@ubuntu.com"
 
 # Known aliases and typical desktop IDs
@@ -444,6 +445,10 @@ def add_common_filter_args(parser, is_hide: bool):
     parser.add_argument("--no-dock", action="store_true", help="Do not touch the Ubuntu Dock")
     parser.add_argument("--no-tray", action="store_true", help="Do not touch the top bar tray icon")
     parser.add_argument("--no-desktop", action="store_true", help="Do not touch ~/Desktop shortcuts")
+    parser.add_argument(
+        "--with-tray", "--tray", action="store_true", dest="with_tray",
+        help="Also toggle top-bar system tray (global ubuntu-appindicators extension)"
+    )
 
     if is_hide:
         parser.add_argument(
@@ -460,7 +465,9 @@ def resolve_target_components(args, is_hide: bool) -> Set[str]:
     if getattr(args, "only", None):
         targets = set(args.only)
     else:
-        targets = set(ALL_COMPONENTS)
+        targets = set(DEFAULT_COMPONENTS)
+        if getattr(args, "with_tray", False):
+            targets.add("tray")
 
     if getattr(args, "skip", None):
         targets -= set(args.skip)

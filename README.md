@@ -138,6 +138,15 @@ app-visibility restore spotify --only dock
 app-visibility hide terminal --no-dock
 ```
 
+#### Top Bar System Tray Control (`--with-tray`):
+By default, `app-visibility` targets `dock`, `window`, and `desktop`, leaving global system tray monitors (such as **Psensor**, battery, and hardware monitors) undisturbed on your top bar. To also hide top bar tray icons for a clean video capture:
+
+```bash
+# Also hide top bar system tray globally
+app-visibility hide antigravity --with-tray
+antigravity-visibility hide --with-tray
+```
+
 #### Multi-Application Batch Hiding:
 ```bash
 app-visibility hide spotify code terminal

@@ -21,11 +21,12 @@ Compatible with **Google Antigravity**, **Codex**, **Claude Code**, **Cursor**, 
 | **Restore Desktop Icons & Folders** | `desk-visibility show` | Re-enables DING extension; restores all folders/files |
 | **Toggle Desktop Icons** | `desk-visibility toggle` | Switches between hidden and visible states |
 | **Inspect Desktop Status** | `desk-visibility status` | Reports DING extension, Home/Trash, and `~/Desktop` items |
-| **Hide Any App (Full)** | `app-visibility hide <app>` | Hides Dock, Tray, Desktop shortcut, and minimizes window |
-| **Hide App (Keep Window Open)** | `app-visibility hide <app> --no-minimize` | Cleans Dock and Tray without minimizing app window |
+| **Hide Any App (Default)** | `app-visibility hide <app>` | Hides Dock, Desktop shortcut, and minimizes window (leaves tray monitors intact) |
+| **Hide App with Top Bar Tray** | `app-visibility hide <app> --with-tray` | Also hides top-bar system tray icons globally |
+| **Hide App (Keep Window Open)** | `app-visibility hide <app> --no-minimize` | Cleans Dock without minimizing app window |
 | **Selective Hide Component** | `app-visibility hide <app> --only dock tray` | Only hides specified components (`dock`, `tray`, `window`, `desktop`) |
 | **Batch App Hiding** | `app-visibility hide spotify code terminal` | Simultaneously hides multiple applications |
-| **Restore Specific App** | `app-visibility restore <app>` | Restores Dock launchers and Tray indicators for targeted app |
+| **Restore Specific App** | `app-visibility restore <app>` | Restores Dock launchers and Desktop shortcuts for targeted app |
 | **Restore All Hidden Apps** | `app-visibility restore` | Restores all currently tracked apps from state file |
 | **Antigravity Quick Preset** | `antigravity-visibility hide` / `restore` | Dedicated one-shot preset for Antigravity IDE |
 
@@ -41,7 +42,7 @@ Compatible with **Google Antigravity**, **Codex**, **Claude Code**, **Cursor**, 
 ### 2. Dock & App Indicator Management (`app-visibility`)
 - **Dock Favorites:** Introspects `org.gnome.shell favorite-apps` and dynamically filters matching `.desktop` IDs (with built-in alias resolution for Spotify, VS Code, Terminal, Chrome, Antigravity, LibreOffice, etc.).
 - **Running App Dots:** Toggles `org.gnome.shell.extensions.dash-to-dock show-running false` so active background processes do not display floating dock indicators.
-- **Top Bar Tray (SNI):** Controls `ubuntu-appindicators@ubuntu.com` with reference counting across active apps.
+- **Top Bar Tray (SNI):** Managed via `ubuntu-appindicators@ubuntu.com`. Kept untouched by default to preserve system hardware monitors (like Psensor) and sensors, or toggled explicitly via `--with-tray`.
 - **Window Management:** Safely minimizes application windows upon hide without minimizing the active terminal. Window reactivation is left cleanly to the user upon dock/app restoration.
 
 ### 3. State Persistence & Safety

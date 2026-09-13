@@ -42,7 +42,7 @@ Compatible with **Google Antigravity**, **Codex**, **Claude Code**, **Cursor**, 
 ### 2. Dock & App Indicator Management (`app-visibility`)
 - **Dock Favorites:** Introspects `org.gnome.shell favorite-apps` and dynamically filters matching `.desktop` IDs (with built-in alias resolution for Spotify, VS Code, Terminal, Chrome, Antigravity, LibreOffice, etc.).
 - **Running App Dots:** Toggles `org.gnome.shell.extensions.dash-to-dock show-running false` so active background processes do not display floating dock indicators.
-- **Top Bar Tray (SNI):** Managed via `ubuntu-appindicators@ubuntu.com`. Kept untouched by default to preserve system hardware monitors (like Psensor) and sensors, or toggled explicitly via `--with-tray`.
+- **Top Bar Tray (SNI):** Supports surgical per-app indicator hiding via companion extension `tray-visibility@fbetancourt.gemini`, keeping system hardware monitors (like Psensor) untouched, and supports global whole-tray toggle via `--with-tray`.
 - **Window Management:** Safely minimizes application windows upon hide without minimizing the active terminal. Window reactivation is left cleanly to the user upon dock/app restoration.
 
 ### 3. State Persistence & Safety

@@ -136,6 +136,55 @@ def refresh_legacy_tray_indicators():
         pass
 
 
+def is_tray_visibility_extension_available() -> bool:
+    """Checks if the surgical TrayVisibility GNOME extension D-Bus service is running."""
+    try:
+        res = subprocess.run([
+            "busctl", "--user", "call",
+            "org.gnome.Shell.Extensions.TrayVisibility",
+            "/org/gnome/Shell/Extensions/TrayVisibility",
+            "org.gnome.Shell.Extensions.TrayVisibility",
+            "List"
+        ], capture_output=True, text=True, timeout=1)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def hide_tray_icon_surgical(app_name: str) -> bool:
+    """Surgically hides only the target app's indicator widget in the top panel."""
+    if not is_tray_visibility_extension_available():
+        return False
+    try:
+        res = subprocess.run([
+            "busctl", "--user", "call",
+            "org.gnome.Shell.Extensions.TrayVisibility",
+            "/org/gnome/Shell/Extensions/TrayVisibility",
+            "org.gnome.Shell.Extensions.TrayVisibility",
+            "Hide", "s", app_name
+        ], capture_output=True, text=True, timeout=2)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def restore_tray_icon_surgical(app_name: str) -> bool:
+    """Surgically restores only the target app's indicator widget in the top panel."""
+    if not is_tray_visibility_extension_available():
+        return False
+    try:
+        res = subprocess.run([
+            "busctl", "--user", "call",
+            "org.gnome.Shell.Extensions.TrayVisibility",
+            "/org/gnome/Shell/Extensions/TrayVisibility",
+            "org.gnome.Shell.Extensions.TrayVisibility",
+            "Show", "s", app_name
+        ], capture_output=True, text=True, timeout=2)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Application Discovery & Identification
 # ---------------------------------------------------------------------------
@@ -290,13 +339,17 @@ def hide_single_app(app_name: str, targets: Set[str], master_state: Dict[str, An
         print(f"[OK] Removed '{app_name}' icons and suppressed running dot in Dock.")
 
     # 2. Tray Indicator
-    if "tray" in targets and "tray" not in hidden_comps:
-        was_enabled = is_extension_enabled(APPINDICATOR_EXT)
-        app_state["saved_appindicators_enabled"] = was_enabled
-        if was_enabled:
-            set_extension_state(APPINDICATOR_EXT, False)
-        hidden_comps.add("tray")
-        print("[OK] Top bar tray icons hidden (ubuntu-appindicators disabled).")
+    if "tray" in targets and "tray" not in hidden_comps and "tray_surgical" not in hidden_comps:
+        if hide_tray_icon_surgical(app_name):
+            hidden_comps.add("tray_surgical")
+            print(f"[OK] Surgically hidden tray indicator for '{app_name}' (system monitors like Psensor untouched).")
+        else:
+            was_enabled = is_extension_enabled(APPINDICATOR_EXT)
+            app_state["saved_appindicators_enabled"] = was_enabled
+            if was_enabled:
+                set_extension_state(APPINDICATOR_EXT, False)
+                print("[OK] Top bar tray icons hidden (ubuntu-appindicators disabled globally).")
+            hidden_comps.add("tray")
 
     # 3. Desktop Shortcuts
     if "desktop" in targets and "desktop" not in hidden_comps:
@@ -361,6 +414,11 @@ def show_single_app(app_name: str, targets: Optional[Set[str]], master_state: Di
         print(f"[OK] Restored Dock launcher(s) and running indicators for '{app_name}'.")
 
     # 2. Tray
+    if "tray_surgical" in hidden_comps:
+        restore_tray_icon_surgical(app_name)
+        hidden_comps.discard("tray_surgical")
+        print(f"[OK] Restored surgical tray indicator for '{app_name}'.")
+
     if "tray" in targets:
         other_apps_need_tray_hidden = any(
             "tray" in other.get("hidden_components", [])
@@ -465,9 +523,12 @@ def resolve_target_components(args, is_hide: bool) -> Set[str]:
     if getattr(args, "only", None):
         targets = set(args.only)
     else:
-        targets = set(DEFAULT_COMPONENTS)
-        if getattr(args, "with_tray", False):
-            targets.add("tray")
+        if is_tray_visibility_extension_available():
+            targets = set(ALL_COMPONENTS)
+        else:
+            targets = set(DEFAULT_COMPONENTS)
+            if getattr(args, "with_tray", False):
+                targets.add("tray")
 
     if getattr(args, "skip", None):
         targets -= set(args.skip)

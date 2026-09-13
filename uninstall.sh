@@ -16,4 +16,11 @@ for cmd in desk-visibility desktop-visibility app-visibility application-visibil
     fi
 done
 
+EXT_NAME="tray-visibility@fbetancourt.gemini"
+EXT_DEST="${HOME}/.local/share/gnome-shell/extensions/${EXT_NAME}"
+if [[ -L "${EXT_DEST}" || -d "${EXT_DEST}" ]]; then
+    rm -rf "${EXT_DEST}"
+    echo "  [✓] Removed GNOME extension ${EXT_NAME}"
+fi
+
 echo "==> Uninstallation complete."

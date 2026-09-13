@@ -25,7 +25,17 @@ echo "  [✓] Created alias desktop-visibility -> desk-visibility"
 ln -sf "${TARGET_DIR}/app-visibility" "${TARGET_DIR}/application-visibility"
 echo "  [✓] Created alias application-visibility -> app-visibility"
 
-# 3. Check PATH
+# 3. Install GNOME Shell extension for surgical tray visibility
+EXT_NAME="tray-visibility@fbetancourt.gemini"
+EXT_SRC="${SCRIPT_DIR}/gnome-extension/${EXT_NAME}"
+EXT_DEST="${HOME}/.local/share/gnome-shell/extensions/${EXT_NAME}"
+if [[ -d "${EXT_SRC}" ]]; then
+    mkdir -p "${HOME}/.local/share/gnome-shell/extensions"
+    ln -sfn "${EXT_SRC}" "${EXT_DEST}"
+    echo "  [✓] Installed GNOME extension ${EXT_NAME} -> ${EXT_DEST}"
+fi
+
+# 4. Check PATH
 if [[ ":${PATH}:" != *":${TARGET_DIR}:"* ]]; then
     echo ""
     echo "[!] Note: ${TARGET_DIR} is not in your current PATH."

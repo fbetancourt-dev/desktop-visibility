@@ -192,7 +192,7 @@ antigravity-visibility status
 
 - **Desktop Subsystem:** Interacts directly with the GNOME Desktop Icons NG (DING) extension via `gnome-extensions` and `gsettings org.gnome.shell.extensions.ding`.
 - **Dock Subsystem:** Filters application launchers dynamically from `org.gnome.shell favorite-apps` and toggles `org.gnome.shell.extensions.dash-to-dock show-running` to suppress running indicators.
-- **Top Bar Tray Subsystem:** Coordinates with `ubuntu-appindicators@ubuntu.com` with reference counting across multiple hidden apps.
+- **Top Bar Tray Subsystem:** Integrates with the companion GNOME Shell extension (`tray-visibility@fbetancourt.gemini`) to surgically hide individual app indicator widgets via D-Bus without disturbing global system monitors (such as Psensor). Also supports fallback global toggling via `ubuntu-appindicators@ubuntu.com`.
 - **Window Management:** Integrates with Wayland-compliant AT-SPI automation (`desktop-dom` and native `Super + H` shortcuts) for window focus and minimization.
 - **State Persistence:** Preserves pristine system configurations in `~/.config/app_visibility_state.json` for guaranteed recovery.
 

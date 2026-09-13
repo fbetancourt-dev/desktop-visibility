@@ -7,13 +7,14 @@ Designed for clean screen recordings, screenshots, and live presentations.
 Supported Components:
 - dock     : Ubuntu Dock favorite launcher and active running dot indicator
 - tray     : Top bar status indicators (ubuntu-appindicators)
-- window   : Application window minimization and restoration (preserves maximized/floating state)
+- window   : Application window minimization (only when target app is focused)
 - desktop  : Desktop shortcuts on ~/Desktop
 
-Default Behavior:
-- 'hide'   : Hides ALL components (dock, tray, desktop) AND minimizes window(s).
-- 'show'   : Restores ALL hidden components and restores window focus & previous window state.
-- Granular : Use --only or --skip/--no-* flags to selectively control components.
+Behavior:
+- 'hide'   : Hides dock icons, tray indicator, desktop shortcuts, and minimizes target window.
+             Safety guard: If running inside a terminal, protects terminal from being minimized.
+- 'show'   : Restores all icons (Dock, Tray, Desktop). Does NOT tamper with windows;
+             user easily restores window from the dock or Alt+Tab.
 
 Author: Francisco Betancourt (@fbetancourt-dev)
 License: MIT
@@ -27,10 +28,9 @@ import shutil
 import subprocess
 import argparse
 import time
-from typing import List, Set, Dict, Any, Optional, Tuple
+from typing import List, Set, Dict, Any, Optional
 
 STATE_FILE = os.path.expanduser("~/.config/app_visibility_state.json")
-LEGACY_STATE_FILE = os.path.expanduser("~/.config/antigravity_visibility_state.json")
 BACKUP_BASE_DIR = os.path.expanduser("~/.local/share/app_visibility_backup")
 DESKTOP_DIR = os.path.expanduser("~/Desktop")
 
@@ -155,101 +155,48 @@ def resolve_app_desktop_ids(app_query: str, current_favorites: List[str]) -> Lis
 
 
 # ---------------------------------------------------------------------------
-# Window Management & Maximized/Floating State Preservation
+# Safe Window Management
 # ---------------------------------------------------------------------------
 
-def get_screen_size() -> Tuple[int, int]:
-    """Retrieves current primary screen resolution."""
-    try:
-        out = subprocess.check_output(["xrandr"], stderr=subprocess.DEVNULL).decode()
-        for line in out.splitlines():
-            if "*" in line:
-                res = line.split()[0]
-                w, h = map(int, res.split("x"))
-                return w, h
-    except Exception:
-        pass
-    return 1920, 1200
-
-
-def get_window_state(app_query: str) -> Optional[Dict[str, Any]]:
-    """
-    Inspects live window geometry and determines if the window is currently maximized.
-    A window is deemed maximized if its dimensions span the usable workarea.
-    """
-    try:
-        sys.path.append("/home/fbetancourt/.local/bin")
-        from desktop_dom import DesktopDOM
-        dom = DesktopDOM()
-        screen_w, screen_h = get_screen_size()
-
-        q = app_query.lower().strip()
-        for w in dom.list_windows():
-            app_match = q in w["app"].lower() or q in w["title"].lower()
-            if app_match:
-                geom = w.get("geometry", {})
-                if geom.get("valid"):
-                    # GNOME top panel is ~35px, dock ~60px.
-                    is_maximized = (geom["w"] >= screen_w - 90) and (geom["h"] >= screen_h - 70)
-                    return {
-                        "geometry": geom,
-                        "is_maximized": is_maximized,
-                        "title": w.get("title", ""),
-                        "screen_size": [screen_w, screen_h]
-                    }
-    except Exception as e:
-        print(f"[!] Warning reading window state for '{app_query}': {e}", file=sys.stderr)
-    return None
-
-
-def minimize_app_window(app_query: str):
-    """Minimizes window(s) matching the app name."""
+def get_current_focused_app() -> str:
+    """Detects which application currently holds keyboard focus."""
     try:
         res = subprocess.run(["desktop-dom", "focused"], capture_output=True, text=True)
-        if app_query.lower() in res.stdout.lower():
-            subprocess.run(["win-action", "combo", "win", "h", "--intent", f"Minimize {app_query} for capture"], check=True)
-            time.sleep(0.3)
-        else:
-            # Activate it to focus, then send win+h
-            subprocess.run(["desktop-dom", "activate", app_query], capture_output=True)
-            time.sleep(0.3)
-            subprocess.run(["win-action", "combo", "win", "h", "--intent", f"Minimize {app_query} for capture"], check=True)
-            time.sleep(0.3)
-        print(f"[OK] Application '{app_query}' window minimized.")
-    except Exception as e:
-        print(f"[!] Warning minimizing '{app_query}' window: {e}", file=sys.stderr)
+        for line in res.stdout.splitlines():
+            if line.startswith("App:"):
+                return line.split(":", 1)[1].strip().lower()
+    except Exception:
+        pass
+    return ""
 
 
-def restore_app_window(app_query: str, saved_state: Optional[Dict[str, Any]] = None):
+def minimize_app_window_safe(app_query: str):
     """
-    Restores/activates window(s) and ensures the original maximized or floating state is preserved.
+    Minimizes the target app window safely.
+    Guards against accidentally minimizing the terminal if invoked from a CLI session.
     """
+    focused_app = get_current_focused_app()
+    target = app_query.lower().strip()
+
+    # 1. If target app is already focused, minimize directly
+    if target in focused_app:
+        try:
+            subprocess.run(["win-action", "combo", "win", "h", "--intent", f"Minimize {app_query}"], check=True)
+            print(f"[OK] Application '{app_query}' window minimized.")
+        except Exception as e:
+            print(f"[!] Warning minimizing window: {e}", file=sys.stderr)
+        return
+
+    # 2. If the user is running from inside a terminal and targeting another app, DO NOT minimize the terminal!
+    if "terminal" in focused_app and "terminal" not in target:
+        print(f"[INFO] Current focus is on Terminal. Protected terminal from being minimized.")
+        return
+
+    # 3. Otherwise, try safe minimize via shortcut
     try:
-        # 1. Bring window back to foreground
-        subprocess.run(["desktop-dom", "activate", app_query], check=True)
-        time.sleep(0.3)
-
-        # 2. Check and enforce previous maximization state if recorded
-        if saved_state:
-            target_is_max = saved_state.get("is_maximized", False)
-            curr_state = get_window_state(app_query)
-            if curr_state:
-                curr_is_max = curr_state.get("is_maximized", False)
-                if target_is_max and not curr_is_max:
-                    print(f"[OK] Re-applying MAXIMIZED state to '{app_query}' window (Win+Up).")
-                    subprocess.run(["win-action", "maximize", "--intent", f"Restore {app_query} maximized"], check=False)
-                    time.sleep(0.2)
-                elif not target_is_max and curr_is_max:
-                    print(f"[OK] Re-applying FLOATING/UNMAXIMIZED state to '{app_query}' window (Win+Down).")
-                    subprocess.run(["win-action", "combo", "win", "down", "--intent", f"Restore {app_query} unmaximized"], check=False)
-                    time.sleep(0.2)
-                else:
-                    state_name = "MAXIMIZED" if curr_is_max else "FLOATING / UNMAXIMIZED"
-                    print(f"[OK] Window state restored cleanly as {state_name}.")
-
-        print(f"[OK] Application '{app_query}' activated and brought to foreground.")
-    except Exception as e:
-        print(f"[!] Warning activating '{app_query}' window: {e}", file=sys.stderr)
+        subprocess.run(["win-action", "combo", "win", "h", "--intent", f"Minimize {app_query}"], check=False)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -257,48 +204,22 @@ def restore_app_window(app_query: str, saved_state: Optional[Dict[str, Any]] = N
 # ---------------------------------------------------------------------------
 
 def load_master_state() -> Dict[str, Any]:
-    # Migrate legacy antigravity state if exists
-    if not os.path.exists(STATE_FILE) and os.path.exists(LEGACY_STATE_FILE):
-        try:
-            with open(LEGACY_STATE_FILE, "r") as f:
-                old = json.load(f)
-            return {
-                "apps": {
-                    "antigravity": {
-                        "desktop_ids": ["antigravity.desktop", "antigravity-ide.desktop"],
-                        "hidden_components": old.get("hidden_components", ALL_COMPONENTS),
-                        "saved_favorites": old.get("saved_favorites", []),
-                        "saved_show_running": old.get("saved_show_running", True),
-                        "saved_appindicators_enabled": old.get("saved_appindicators_enabled", True),
-                        "desktop_files": old.get("desktop_files", []),
-                        "saved_window_state": old.get("saved_window_state", None),
-                        "hidden_at": old.get("hidden_at", time.time())
-                    }
-                }
-            }
-        except Exception:
-            pass
-
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
                 return json.load(f)
         except Exception as e:
             print(f"[!] Warning reading state file: {e}", file=sys.stderr)
-
     return {"apps": {}}
 
 def save_master_state(state: Dict[str, Any]):
     apps = state.get("apps", {})
-    # Filter out empty apps
     active_apps = {k: v for k, v in apps.items() if v.get("hidden_components")}
     state["apps"] = active_apps
 
     if not active_apps:
         if os.path.exists(STATE_FILE):
             os.remove(STATE_FILE)
-        if os.path.exists(LEGACY_STATE_FILE):
-            os.remove(LEGACY_STATE_FILE)
         return
 
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
@@ -319,7 +240,6 @@ def hide_single_app(app_name: str, targets: Set[str], master_state: Dict[str, An
         "saved_show_running": True,
         "saved_appindicators_enabled": True,
         "desktop_files": [],
-        "saved_window_state": None,
         "hidden_at": None
     })
 
@@ -335,7 +255,7 @@ def hide_single_app(app_name: str, targets: Set[str], master_state: Dict[str, An
     print(f" Identified IDs    : {', '.join(desktop_ids)}")
     print("-------------------------------------------------------------------")
 
-    # 1. Dock
+    # 1. Dock Favorites & Running indicator
     if "dock" in targets and "dock" not in hidden_comps:
         if not app_state.get("saved_favorites"):
             app_state["saved_favorites"] = current_favs
@@ -347,7 +267,7 @@ def hide_single_app(app_name: str, targets: Set[str], master_state: Dict[str, An
         hidden_comps.add("dock")
         print(f"[OK] Removed '{app_name}' icons and suppressed running dot in Dock.")
 
-    # 2. Tray
+    # 2. Tray Indicator
     if "tray" in targets and "tray" not in hidden_comps:
         was_enabled = is_extension_enabled(APPINDICATOR_EXT)
         app_state["saved_appindicators_enabled"] = was_enabled
@@ -373,16 +293,9 @@ def hide_single_app(app_name: str, targets: Set[str], master_state: Dict[str, An
         app_state["desktop_files"] = moved_files
         hidden_comps.add("desktop")
 
-    # 4. Window Minimization (with pre-capture of maximized/geometry state)
+    # 4. Window Minimization
     if "window" in targets:
-        win_state = get_window_state(app_name)
-        if win_state:
-            app_state["saved_window_state"] = win_state
-            g = win_state["geometry"]
-            state_lbl = "MAXIMIZED" if win_state["is_maximized"] else f"FLOATING ({g['w']}x{g['h']})"
-            print(f"[OK] Saved initial window state: {state_lbl}.")
-
-        minimize_app_window(app_name)
+        minimize_app_window_safe(app_name)
         hidden_comps.add("window")
     else:
         print(f"[INFO] Window minimization skipped for '{app_name}' (--no-minimize / omitted).")
@@ -392,6 +305,10 @@ def hide_single_app(app_name: str, targets: Set[str], master_state: Dict[str, An
 
 
 def show_single_app(app_name: str, targets: Optional[Set[str]], master_state: Dict[str, Any]):
+    """
+    Restores icons and indicators for the application.
+    Pure icon restoration: does not launch apps or manipulate windows.
+    """
     apps = master_state.get("apps", {})
     app_state = apps.get(app_name, {})
 
@@ -400,8 +317,7 @@ def show_single_app(app_name: str, targets: Optional[Set[str]], master_state: Di
         targets = set(hidden_comps) if hidden_comps else set(ALL_COMPONENTS)
 
     print("-------------------------------------------------------------------")
-    print(f" RESTORING APP: '{app_name}'")
-    print(f" Restoring Components : {', '.join(sorted(targets)) if targets else 'None'}")
+    print(f" RESTORING ICONS: '{app_name}'")
     print("-------------------------------------------------------------------")
 
     # 1. Dock
@@ -424,7 +340,6 @@ def show_single_app(app_name: str, targets: Optional[Set[str]], master_state: Di
 
     # 2. Tray
     if "tray" in targets:
-        # Only re-enable tray if NO OTHER app is still requesting tray hidden
         other_apps_need_tray_hidden = any(
             "tray" in other.get("hidden_components", [])
             for k, other in apps.items() if k != app_name
@@ -452,15 +367,8 @@ def show_single_app(app_name: str, targets: Optional[Set[str]], master_state: Di
             except Exception:
                 pass
 
-    # 4. Window Restoration (Restores focus AND ensures original maximized/floating state)
-    if "window" in targets:
-        saved_win_state = app_state.get("saved_window_state")
-        restore_app_window(app_name, saved_state=saved_win_state)
-        app_state["saved_window_state"] = None
-        hidden_comps.discard("window")
-    else:
-        print(f"[INFO] Window restoration skipped for '{app_name}' (--no-window / omitted).")
-
+    # 4. Mark window as restored without touching focus or launching binaries
+    hidden_comps.discard("window")
     app_state["hidden_components"] = list(hidden_comps)
 
 
@@ -486,18 +394,12 @@ def show_global_status(app_filter: Optional[str] = None):
         present_in_dock = [d for d in desktop_ids if d in current_favorites]
         app_state = apps.get(app, {})
         hidden_comps = app_state.get("hidden_components", [])
-        saved_win = app_state.get("saved_window_state")
 
         status_str = "🟢 Normal / Visible" if not hidden_comps else f"⚪ Partially/Fully Hidden: {', '.join(hidden_comps)}"
         print(f"App: {app.upper()}")
         print(f"  ├ State        : {status_str}")
         print(f"  ├ Dock Icons   : {', '.join(present_in_dock) if present_in_dock else '⚪ None in favorites'}")
-
-        if saved_win:
-            win_info = "Maximized" if saved_win.get("is_maximized") else f"Floating ({saved_win['geometry']['w']}x{saved_win['geometry']['h']})"
-            print(f"  └ Window State : ⚪ Minimized (Saved as: {win_info})")
-        else:
-            print(f"  └ Window State : {'⚪ Minimized / Tracked' if 'window' in hidden_comps else '🟢 Active / Untracked'}")
+        print(f"  └ Window Track : {'⚪ Hidden' if 'window' in hidden_comps else '🟢 Visible'}")
 
     print("===================================================================")
 
@@ -524,16 +426,11 @@ def add_common_filter_args(parser, is_hide: bool):
     if is_hide:
         parser.add_argument(
             "--no-minimize", action="store_true",
-            help="Do NOT minimize window(s) (default: minimize window)"
+            help="Do NOT minimize window(s)"
         )
         parser.add_argument(
             "--no-window", action="store_true", dest="no_minimize",
             help="Alias for --no-minimize"
-        )
-    else:
-        parser.add_argument(
-            "--no-window", action="store_true",
-            help="Do NOT restore/activate window(s) (keep current focus)"
         )
 
 
@@ -546,7 +443,7 @@ def resolve_target_components(args, is_hide: bool) -> Set[str]:
     if getattr(args, "skip", None):
         targets -= set(args.skip)
 
-    if getattr(args, "no_minimize", False) or getattr(args, "no_window", False):
+    if getattr(args, "no_minimize", False):
         targets.discard("window")
     if getattr(args, "no_dock", False):
         targets.discard("dock")
@@ -564,28 +461,22 @@ def main():
         description="Universal Application Visibility Manager for Ubuntu / GNOME desktop.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
-  # Hide Antigravity completely (default app if none specified)
+  # Hide Antigravity (Dock, Tray, Desktop, and minimize if focused)
   app-visibility hide
 
-  # Hide Spotify (Dock, Tray, Desktop, and minimize window)
+  # Hide Spotify completely
   app-visibility hide spotify
 
   # Hide VS Code without minimizing its window
   app-visibility hide code --no-minimize
 
-  # Hide multiple apps at once
-  app-visibility hide spotify code terminal
-
-  # Hide only the dock icon for Spotify
-  app-visibility hide spotify --only dock
-
-  # Restore Spotify (preserves maximized or floating state)
+  # Restore icons for Spotify (Dock, Tray, Desktop)
   app-visibility restore spotify
 
-  # Restore ALL currently hidden apps
+  # Restore icons for ALL currently hidden apps
   app-visibility restore
 
-  # Check visibility status of all tracked apps
+  # Check visibility status
   app-visibility status
 """
     )
@@ -636,7 +527,6 @@ def main():
         has_filters = any([
             getattr(args, "only", None),
             getattr(args, "skip", None),
-            getattr(args, "no_window", False),
             getattr(args, "no_dock", False),
             getattr(args, "no_tray", False),
             getattr(args, "no_desktop", False)

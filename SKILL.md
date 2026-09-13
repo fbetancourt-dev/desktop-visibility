@@ -25,7 +25,7 @@ Compatible with **Google Antigravity**, **Codex**, **Claude Code**, **Cursor**, 
 | **Hide App (Keep Window Open)** | `app-visibility hide <app> --no-minimize` | Cleans Dock and Tray without minimizing app window |
 | **Selective Hide Component** | `app-visibility hide <app> --only dock tray` | Only hides specified components (`dock`, `tray`, `window`, `desktop`) |
 | **Batch App Hiding** | `app-visibility hide spotify code terminal` | Simultaneously hides multiple applications |
-| **Restore Specific App** | `app-visibility restore <app>` | Restores Dock, Tray, and window for targeted app |
+| **Restore Specific App** | `app-visibility restore <app>` | Restores Dock launchers and Tray indicators for targeted app |
 | **Restore All Hidden Apps** | `app-visibility restore` | Restores all currently tracked apps from state file |
 | **Antigravity Quick Preset** | `antigravity-visibility hide` / `restore` | Dedicated one-shot preset for Antigravity IDE |
 
@@ -42,7 +42,7 @@ Compatible with **Google Antigravity**, **Codex**, **Claude Code**, **Cursor**, 
 - **Dock Favorites:** Introspects `org.gnome.shell favorite-apps` and dynamically filters matching `.desktop` IDs (with built-in alias resolution for Spotify, VS Code, Terminal, Chrome, Antigravity, LibreOffice, etc.).
 - **Running App Dots:** Toggles `org.gnome.shell.extensions.dash-to-dock show-running false` so active background processes do not display floating dock indicators.
 - **Top Bar Tray (SNI):** Controls `ubuntu-appindicators@ubuntu.com` with reference counting across active apps.
-- **Window Management:** Uses Wayland-compliant AT-SPI automation (`desktop-dom` and native `Super + H` shortcuts) to minimize or reactivate application windows.
+- **Window Management:** Safely minimizes application windows upon hide without minimizing the active terminal. Window reactivation is left cleanly to the user upon dock/app restoration.
 
 ### 3. State Persistence & Safety
 - **No Background Daemons:** The tools are strictly non-daemon one-shot CLI utilities.

@@ -136,9 +136,6 @@ app-visibility restore spotify --only dock
 
 # Hide everything EXCEPT the Dock
 app-visibility hide terminal --no-dock
-
-# Restore application without stealing focus / activating window
-app-visibility restore code --no-window
 ```
 
 #### Multi-Application Batch Hiding:

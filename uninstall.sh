@@ -9,7 +9,7 @@ TARGET_DIR="${HOME}/.local/bin"
 
 echo "==> Removing Desktop Visibility Suite from ${TARGET_DIR}..."
 
-for cmd in desk-visibility desktop-visibility app-visibility application-visibility antigravity-visibility; do
+for cmd in desk-visibility desktop-visibility app-visibility application-visibility antigravity-visibility psensor-visibility; do
     if [[ -L "${TARGET_DIR}/${cmd}" || -f "${TARGET_DIR}/${cmd}" ]]; then
         rm -f "${TARGET_DIR}/${cmd}"
         echo "  [✓] Removed ${cmd}"

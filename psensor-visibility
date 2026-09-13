@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""
+Psensor Desktop & Tray Visibility Manager
+Convenience CLI for managing Psensor visibility, tray status, and startup configuration.
+"""
+
+import sys
+import os
+import argparse
+import subprocess
+from pathlib import Path
+
+AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "psensor.desktop"
+
+def is_psensor_running() -> bool:
+    res = subprocess.run(["pgrep", "-x", "psensor"], capture_output=True)
+    return res.returncode == 0
+
+def get_autostart_status() -> bool:
+    """Returns True if autostart is enabled, False if disabled."""
+    if not AUTOSTART_FILE.exists():
+        return False
+    content = AUTOSTART_FILE.read_text()
+    if "Hidden=true" in content or "X-GNOME-Autostart-enabled=false" in content:
+        return False
+    return True
+
+def set_autostart(enable: bool):
+    AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
+    content = f"""[Desktop Entry]
+Type=Application
+Exec=psensor
+Hidden={'false' if enable else 'true'}
+NoDisplay=false
+X-GNOME-Autostart-enabled={'true' if enable else 'false'}
+Name=Psensor
+Comment=Display graphs for monitoring hardware temperature
+"""
+    AUTOSTART_FILE.write_text(content)
+    state_str = "ENABLED" if enable else "DISABLED"
+    print(f"[OK] Psensor startup on system boot is now {state_str}.")
+
+def show_status():
+    running = is_psensor_running()
+    autostart = get_autostart_status()
+    
+    print("===================================================================")
+    print("                 PSENSOR VISIBILITY & STARTUP STATUS               ")
+    print("===================================================================")
+    print(f"Process Status  : {'🟢 Running' if running else '⚪ Stopped'}")
+    if running:
+        pids = subprocess.run(["pgrep", "-x", "psensor"], capture_output=True, text=True).stdout.strip().split()
+        print(f"PID(s)          : {', '.join(pids)}")
+    print(f"Startup on Boot : {'🟢 Enabled' if autostart else '⚪ Disabled (Clean Boot)'}")
+    print(f"Autostart File  : {AUTOSTART_FILE}")
+    print("-------------------------------------------------------------------")
+    # Also query app-visibility status
+    subprocess.run(["app-visibility", "status", "psensor"])
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="psensor-visibility",
+        description="Psensor Visibility and Autostart Manager for Ubuntu / GNOME desktop.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  # Hide Psensor from top bar tray and dock
+  psensor-visibility hide
+
+  # Restore Psensor tray icon
+  psensor-visibility restore
+
+  # Toggle Psensor visibility
+  psensor-visibility toggle
+
+  # Check Psensor visibility, process and startup status
+  psensor-visibility status
+
+  # Disable Psensor autostart on system boot
+  psensor-visibility disable-startup
+
+  # Enable Psensor autostart on system boot
+  psensor-visibility enable-startup
+"""
+    )
+
+    subparsers = parser.add_subparsers(dest="action", help="Action to perform")
+
+    # hide subcommand
+    parser_hide = subparsers.add_parser("hide", help="Hide Psensor tray icon and dock indicator")
+    parser_hide.add_argument("--no-dock", action="store_true", help="Do not touch Ubuntu Dock")
+    parser_hide.add_argument("--no-tray", action="store_true", help="Do not touch top bar tray icon")
+
+    # show / restore subcommands
+    parser_show = subparsers.add_parser("show", help="Restore Psensor tray icon and dock indicator")
+    parser_restore = subparsers.add_parser("restore", help="Alias for 'show'")
+
+    # toggle subcommand
+    parser_toggle = subparsers.add_parser("toggle", help="Toggle Psensor visibility")
+
+    # status subcommand
+    parser_status = subparsers.add_parser("status", help="Show Psensor status and autostart configuration")
+
+    # startup management subcommands
+    parser_disable_startup = subparsers.add_parser("disable-startup", help="Disable Psensor autostart on boot")
+    parser_enable_startup = subparsers.add_parser("enable-startup", help="Enable Psensor autostart on boot")
+
+    args, unknown = parser.parse_known_args()
+
+    if not args.action:
+        parser.print_help()
+        sys.exit(0)
+
+    if args.action == "hide":
+        cmd = ["app-visibility", "hide", "psensor"] + unknown
+        if getattr(args, "no_dock", False):
+            cmd.append("--no-dock")
+        if getattr(args, "no_tray", False):
+            cmd.append("--no-tray")
+        sys.exit(subprocess.run(cmd).returncode)
+
+    elif args.action in ["show", "restore"]:
+        cmd = ["app-visibility", "restore", "psensor"] + unknown
+        sys.exit(subprocess.run(cmd).returncode)
+
+    elif args.action == "toggle":
+        cmd = ["app-visibility", "toggle", "psensor"] + unknown
+        sys.exit(subprocess.run(cmd).returncode)
+
+    elif args.action == "status":
+        show_status()
+
+    elif args.action == "disable-startup":
+        set_autostart(False)
+
+    elif args.action == "enable-startup":
+        set_autostart(True)
+
+if __name__ == "__main__":
+    main()

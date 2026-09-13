@@ -12,7 +12,7 @@ echo "==> Installing Desktop Visibility Suite into ${TARGET_DIR}..."
 mkdir -p "${TARGET_DIR}"
 
 # 1. Install primary tools
-for tool in desk-visibility app-visibility antigravity-visibility; do
+for tool in desk-visibility app-visibility antigravity-visibility psensor-visibility; do
     chmod +x "${SCRIPT_DIR}/${tool}"
     ln -sf "${SCRIPT_DIR}/${tool}" "${TARGET_DIR}/${tool}"
     echo "  [✓] Linked ${tool} -> ${TARGET_DIR}/${tool}"
@@ -48,3 +48,4 @@ echo "==> Installation complete! Available commands:"
 echo "    - desk-visibility (alias: desktop-visibility)"
 echo "    - app-visibility  (alias: application-visibility)"
 echo "    - antigravity-visibility"
+echo "    - psensor-visibility"

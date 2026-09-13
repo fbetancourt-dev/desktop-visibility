@@ -22,9 +22,10 @@ When recording developer tutorials, streaming live demos, or capturing clean app
 
 | Executable | Alias | Description |
 | :--- | :--- | :--- |
-| **`desk-visibility`** | `desktop-visibility` | Toggles the entire desktop icon/folder layer via Desktop Icons NG (`ding@rastersoft.com`). |
-| **`app-visibility`** | `application-visibility` | Hides/restores dock icons, tray indicators, desktop shortcuts, and windows for **any** application (`spotify`, `code`, `terminal`, `antigravity`, etc.). |
-| **`antigravity-visibility`** | — | Convenience wrapper preconfigured for Google Antigravity & Antigravity IDE. |
+| **`desk-visibility`** | `desktop-visibility` | Toggles the entire desktop icon/folder layer via Desktop Icons NG (`ding@rastersoft.com`) without moving files. |
+| **`app-visibility`** | `application-visibility` | Universal manager to hide/restore dock launchers and tray indicators for **any** application (`spotify`, `code`, `terminal`, `antigravity`, `psensor`, etc.). Desktop files are never touched. |
+| **`antigravity-visibility`** | — | Convenience wrapper for Google Antigravity & Antigravity IDE (hides from Dock and top bar Tray only, until restore). |
+| **`psensor-visibility`** | — | Dedicated CLI to hide/restore the top bar Psensor tray icon, inspect hardware monitor status, and disable/enable startup on boot. |
 
 ---
 
@@ -89,68 +90,54 @@ Desktop Directory  : /home/fbetancourt/Desktop (2 items)
 
 ### 2. `app-visibility` (Universal Application Artifacts)
 
-Control dock icons, top-bar tray icons, desktop shortcuts, and windows for any installed application.
+Control dock icons, running dots, and top-bar tray indicators for any installed application.
+
+> [!NOTE]
+> Physical files and shortcuts on your desktop (`~/Desktop`) are **never** moved or modified by `app-visibility`. Desktop icon visibility as a whole is managed cleanly by `desk-visibility`.
 
 #### Basic Operations:
 ```bash
-# Hide Spotify completely (Dock, Tray, Desktop, and minimize window)
-app-visibility hide spotify
-
-# Hide VS Code completely
-app-visibility hide code
-
-# Hide GNOME Terminal
-app-visibility hide terminal
-
-# If no application is specified, defaults to 'antigravity':
+# Hide Antigravity (Dock launcher & running dot, and top bar Tray icon)
+app-visibility hide antigravity
+# or simply:
 app-visibility hide
 
+# Hide Spotify
+app-visibility hide spotify
+
+# Hide Psensor (Tray indicator)
+app-visibility hide psensor
+
 # Restore a specific application:
-app-visibility restore spotify
+app-visibility restore antigravity
 
 # Restore ALL currently hidden applications:
 app-visibility restore
 ```
 
-#### Window Minimization Control (`--no-minimize`):
-By default, hiding an application minimizes its active window. To keep the window visible on screen while stripping away dock and tray clutter:
-
-```bash
-# Keep the application window open on screen, but clean Dock and Tray
-app-visibility hide code --no-minimize
-app-visibility hide spotify --no-minimize
-```
+#### Smart Per-App Defaults:
+- **`antigravity` / `antigravity-ide`**: Targets `dock` and `tray` only. Leaves windows and desktop untouched.
+- **`psensor`**: Targets `tray` only. Cleanly stops the background monitor daemon so the thermometer disappears without touching other tray icons.
+- **Other apps**: Targets `dock` and `tray`. Add `--minimize` if you also want to minimize its window.
 
 #### Granular Component Control (`--only` / `--skip` / `--no-*`):
-Supported components: `dock`, `tray`, `window`, `desktop`.
+Supported components: `dock`, `tray`, `window`.
 
 ```bash
-# Hide ONLY the Dock icon for Spotify (do not minimize window, do not touch tray)
+# Hide ONLY the Dock icon for Spotify (leave tray untouched)
 app-visibility hide spotify --only dock
 
-# Hide Dock and Tray, but leave the window untouched
-app-visibility hide code --only dock tray
+# Hide Dock and Tray, and also minimize the window
+app-visibility hide code --minimize
 
 # Restore only the Dock icon, leaving tray hidden
 app-visibility restore spotify --only dock
-
-# Hide everything EXCEPT the Dock
-app-visibility hide terminal --no-dock
-```
-
-#### Top Bar System Tray Control (`--with-tray`):
-By default, `app-visibility` targets `dock`, `window`, and `desktop`, leaving global system tray monitors (such as **Psensor**, battery, and hardware monitors) undisturbed on your top bar. To also hide top bar tray icons for a clean video capture:
-
-```bash
-# Also hide top bar system tray globally
-app-visibility hide antigravity --with-tray
-antigravity-visibility hide --with-tray
 ```
 
 #### Multi-Application Batch Hiding:
 ```bash
-app-visibility hide spotify code terminal
-app-visibility restore spotify code terminal
+app-visibility hide spotify code
+app-visibility restore spotify code
 ```
 
 #### Live Status Inspection:
@@ -159,31 +146,54 @@ app-visibility restore spotify code terminal
 app-visibility status
 
 # Inspect a specific application:
-app-visibility status spotify
+app-visibility status antigravity
+app-visibility status psensor
 ```
 
 ---
 
 ### 3. `antigravity-visibility` (Antigravity Preset)
 
-A streamlined CLI tailored for Google Antigravity and Antigravity IDE:
+A streamlined CLI tailored for Google Antigravity and Antigravity IDE. Hides from the Dock and top bar Tray until restore is called, leaving windows and desktop shortcuts completely undisturbed:
 
 ```bash
-# Full hide (Dock, Tray, Desktop, and minimize window)
+# Hide Antigravity from Dock and top bar Tray
 antigravity-visibility hide
 
-# Hide Dock and Tray, but keep Antigravity window open
-antigravity-visibility hide --no-minimize
-
-# Granular control
-antigravity-visibility hide --only dock tray
-antigravity-visibility restore --only dock
-
-# Full restore
+# Restore Antigravity icons (Dock launcher, running dot, and Tray indicator)
 antigravity-visibility restore
 
-# Status check
+# Toggle visibility between hidden and restored
+antigravity-visibility toggle
+
+# Check visibility status
 antigravity-visibility status
+```
+
+---
+
+### 4. `psensor-visibility` (Psensor Hardware Monitor)
+
+Dedicated CLI for managing Psensor visibility and system startup. Hides the thermometer indicator from the top bar tray cleanly and allows enabling or disabling Psensor on system boot:
+
+```bash
+# Hide Psensor thermometer icon from top bar tray
+psensor-visibility hide
+
+# Restore Psensor thermometer icon
+psensor-visibility restore
+
+# Toggle Psensor visibility
+psensor-visibility toggle
+
+# Inspect process status, PID, tray status, and startup on boot
+psensor-visibility status
+
+# Disable Psensor autostart on system boot (clean boot)
+psensor-visibility disable-startup
+
+# Enable Psensor autostart on system boot
+psensor-visibility enable-startup
 ```
 
 ---

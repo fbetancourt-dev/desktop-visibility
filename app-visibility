@@ -114,6 +114,27 @@ def set_extension_state(ext_id: str, enable: bool):
         print(f"[!] Warning toggling extension {ext_id}: {e}", file=sys.stderr)
 
 
+def refresh_legacy_tray_indicators():
+    """
+    Legacy GTK StatusIcon applications (such as psensor) do not re-attach to the
+    D-Bus StatusNotifierWatcher host after the GNOME Shell extension is re-enabled.
+    This helper gently restarts them so their tray icons reappear immediately.
+    """
+    try:
+        res = subprocess.run(["pgrep", "-x", "psensor"], capture_output=True, text=True)
+        if res.returncode == 0:
+            time.sleep(0.3)
+            svc = subprocess.run(["systemctl", "--user", "is-active", "psensor-monitor.service"], capture_output=True, text=True)
+            if svc.stdout.strip() == "active":
+                subprocess.run(["systemctl", "--user", "restart", "psensor-monitor.service"], check=False)
+            else:
+                subprocess.run(["pkill", "-9", "-x", "psensor"], check=False)
+                time.sleep(0.2)
+                subprocess.run(["systemd-run", "--user", "--unit=psensor-monitor", "/usr/bin/psensor"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Application Discovery & Identification
 # ---------------------------------------------------------------------------
@@ -346,6 +367,7 @@ def show_single_app(app_name: str, targets: Optional[Set[str]], master_state: Di
         )
         if not other_apps_need_tray_hidden and app_state.get("saved_appindicators_enabled", True):
             set_extension_state(APPINDICATOR_EXT, True)
+            refresh_legacy_tray_indicators()
             print("[OK] Restored top bar tray icons.")
         hidden_comps.discard("tray")
 
